@@ -79,6 +79,10 @@ async def _run_smoke(tmp_path):
             pair = _payload(await session.call_tool("audio_export_comparison", {
                 "first": str(a), "second": str(b)}))
             assert [item["number"] for item in pair["files"]] == [1, 2]
+            monitored = _payload(await session.call_tool("audio_monitor_levels", {"pairs": [
+                {"name": "instrument", "reference": str(a), "candidate": str(b)}]}))
+            assert monitored["all_targets_achieved"]
+            assert abs(monitored["results"][0]["applied_gain_db"]-6.0206) < .01
             exported = _payload(await session.call_tool("midi_export_instrumental", {
                 "source": created["path"], "track_roles": {"0": "instrumental"}}))
             assert exported["removed_vocal_note_count"] == 0

@@ -32,6 +32,9 @@ The setup script creates a local virtual environment, installs the pinned upstre
 | `audio_export_comparison` | Export separate numbered stereo WAVs with optional RMS matching |
 | `audio_preserve_vocals` | Copy vocal audio unchanged with provenance and timeline offset |
 | `audio_assemble_recreation` | Mix preserved vocal assets with an instrumental render |
+| `audio_inspect_levels` | Read full-file LUFS, RMS, peaks and 400 ms level history |
+| `audio_match_reference_level` | Match reference loudness using a disclosed constant gain |
+| `audio_monitor_levels` | Check instrument and final-mix pairs, reporting unmet targets |
 | `reconstruction_plan` | Validate explicit part roles and original-vocal policy |
 | `midi_export_instrumental` | Exclude explicitly classified vocal performance tracks |
 | `fl_create_serum_project` | Build a new one-channel FLP from a Serum preset and MIDI |
@@ -42,6 +45,12 @@ The setup script creates a local virtual environment, installs the pinned upstre
 Generated files use distinct job directories. Job manifests record outputs and diagnostics. Audio comparison reports timing alignment, level, spectral and envelope differences separately. A dominant spectral peak is not a reliable fundamental-pitch estimate. Metrics do not constitute an accuracy percentage; listen to the A/B.
 
 ## Working on a reference
+
+Level preservation applies to every reconstruction. Measure each rebuilt instrument against its corresponding stem and the final mix against its reference. `reconstruction_plan` includes this policy by default. Vocal preservation records levels; native renders and assembled previews automatically attach a level report. Pass `reference_audio` to `fl_render_project` or `reference_mix` to `audio_assemble_recreation` to create a separately corrected copy. The original render and source files remain unchanged; the corrected WAV does not alter FL mixer settings.
+
+Before delivery, call `audio_monitor_levels` with every named instrument and final mix. Each pair contains `name`, `reference` and `candidate`. Missing references produce `reference_required`; missing coverage and clipping-limited gain produce an unresolved result. Only supplied pairs are checked. Matching requires corresponding complete durations and channel counts; explicitly select matching windows when a host adds render tails. The default tolerance is 0.5 LU and the estimated peak ceiling is -0.1 dBTP. Reports distinguish integrated LUFS, RMS, sample peaks and a 4x oversampled peak estimate. Matching loudness cannot guarantee identical peaks, dynamics or musical content. No limiter is applied silently.
+
+The monitor runs when tools are called; it is not a background service. LUFS uses [pyloudnorm](https://github.com/csteinmetz1/pyloudnorm). Oversampled peaks are estimates, not a certified true-peak measurement.
 
 Call `audio_preserve_vocals` with provenance `user_supplied_stem` or `separated_from_mix`. Separated stems require the original mix and model name; this tool does not perform separation. Pass returned manifests to `audio_assemble_recreation` with an instrumental render. Mixing requires matching sample rates and nonnegative offsets. It retains tails and reports common attenuation, without pitch correction or stretching. Native FL vocal-clip insertion is still pending.
 

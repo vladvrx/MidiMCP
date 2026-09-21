@@ -10,12 +10,14 @@ from importlib.metadata import version
 
 from mcp.server.fastmcp import FastMCP
 from . import __version__, audio, fl, fl_project, fl_arrangement, midi, presets, reference as reference_audio
-from . import vocals, comparison, workflow
+from . import vocals, comparison, workflow, levels
 
 mcp = FastMCP("MidiMCP", instructions=(
     "Recreate reference music with editable MIDI and Serum 2 presets. "
     "Recreate instruments only: preserve all singing, rap, speech, backing vocals and vocal chops as source audio. "
     "Do not synthesize vocal guides in the default recreation workflow. Separated vocals are not studio stems. "
+    "For every reconstruction, monitor every instrument against its reference and the final mix against the reference mix. "
+    "Use audio_monitor_levels before delivery. Missing references or capped gains are unresolved, never a perfect match. "
     "MIDI does not contain synth audio. Validate changes by native render and A/B listening. "
     "Compare isolated matching phrases where possible. Audio distances are diagnostics, "
     "not accuracy percentages. Never claim a generated preset was loaded in FL without evidence."
@@ -57,7 +59,9 @@ def capabilities() -> dict:
             "transport": "stdio", "supports": ["serum_preset_create_edit_describe", "midi_phrase_create_inspect",
             "audio_reference_excerpt", "audio_compare_ab", "saved_flp_render", "experimental_serum_flp_create", "experimental_arrangement_instrument_replace",
             "preserved_vocal_assets", "aligned_vocal_mix", "numbered_stereo_comparisons",
-            "reconstruction_role_contract", "instrumental_only_midi_export"],
+            "reconstruction_role_contract", "instrumental_only_midi_export", "default_reference_level_monitoring"],
+            "level_policy": {"default": "match_reference_per_instrument_and_mix", "tolerance_db": 0.5,
+                             "source_files": "unchanged", "missing_reference": "report_unverified"},
             "limitations": ["No automatic full-song transcription or guaranteed sound match.",
             "Experimental project creation supports FL24 and Serum2.0.18 with a local saved Serum project as a wrapper template.",
             "Project builder imports notes and velocity; MIDI expression is not yet supported.",
@@ -156,16 +160,64 @@ def audio_preserve_vocals(source: str, provenance: str, timeline_start_seconds: 
     source_path = _input(source)
     mix_path = _input(original_mix) if original_mix else None
     job = _job("vocals")
-    return _save(job, vocals.preserve_vocals(source_path, job, provenance,
-                 timeline_start_seconds, mix_path, separation_model))
+    result = vocals.preserve_vocals(source_path, job, provenance,
+                 timeline_start_seconds, mix_path, separation_model)
+    result["levels"] = levels.inspect_level(Path(result["path"]))
+    return _save(job, result)
 
 
 @mcp.tool()
-def audio_assemble_recreation(instrumental: str, vocal_assets: list[dict]) -> dict:
+def audio_assemble_recreation(instrumental: str, vocal_assets: list[dict], reference_mix: str | None = None) -> dict:
     """Mix an instrumental with preserved vocal manifests at explicit offsets. No pitch/time changes; same sample rate required."""
     instrumental_path = _input(instrumental)
     job = _job("recreation-mix")
-    return _save(job, vocals.assemble_recreation(instrumental_path, vocal_assets, job))
+    result = vocals.assemble_recreation(instrumental_path, vocal_assets, job)
+    result["level_monitor"] = _monitor(Path(result["outputs"]["recreation"]["path"]), reference_mix, job)
+    return _save(job, result)
+
+
+def _monitor(candidate: Path, reference: str | None, job: Path) -> dict:
+    measured = levels.inspect_level(candidate)
+    if reference is None:
+        return {"status": "reference_required", "candidate": measured,
+                "target_achieved": False, "reason": "Supply the corresponding reference to verify level preservation."}
+    try:
+        result = levels.match_level(_input(reference), candidate, job / "level_matched.wav")
+    except (ValueError, OSError) as exc:
+        return {"status": "review_required", "candidate": measured, "target_achieved": False, "reason": str(exc)}
+    return {"status": "matched" if result["target_achieved"] else "review_required", **result}
+
+
+@mcp.tool()
+def audio_inspect_levels(path: str) -> dict:
+    """Measure full-file LUFS, RMS and sample/estimated true peaks. Does not alter the file."""
+    return levels.inspect_level(_input(path))
+
+
+@mcp.tool()
+def audio_match_reference_level(reference: str, candidate: str, tolerance_db: float = 0.5,
+                                max_gain_db: float = 24) -> dict:
+    """Create a constant-gain copy matching corresponding reference loudness. Report clipping caps and unmet targets."""
+    ref, cand = _input(reference), _input(candidate)
+    job = _job("level-match")
+    return _save(job, levels.match_level(ref, cand, job / "level_matched.wav", tolerance_db, max_gain_db))
+
+
+@mcp.tool()
+def audio_monitor_levels(pairs: list[dict]) -> dict:
+    """Check all instrument and mix pairs. Each item needs name, reference and candidate; missing references remain unverified."""
+    if not 1 <= len(pairs) <= 32:
+        raise ValueError("Provide 1..32 named instrument/mix pairs")
+    job = _job("level-monitor")
+    results = []
+    for index, pair in enumerate(pairs):
+        if not isinstance(pair, dict) or not isinstance(pair.get("name"), str) or not pair["name"].strip():
+            raise ValueError("Each pair needs a nonempty name")
+        candidate = _input(pair["candidate"])
+        folder = job / str(index);folder.mkdir()
+        results.append({"name": pair["name"], **_monitor(candidate, pair.get("reference"), folder)})
+    return _save(job, {"all_targets_achieved": all(r["target_achieved"] for r in results), "results": results,
+                       "scope": "Only supplied pairs checked; no missing instruments inferred", "source_files_modified": False})
 
 
 @mcp.tool()
@@ -205,12 +257,17 @@ def fl_replace_channel_serum(project: str, channel_index: int, preset: str,
 
 
 @mcp.tool()
-def fl_render_project(project: str, timeout_seconds: float = 180) -> dict:
+def fl_render_project(project: str, timeout_seconds: float = 180, reference_audio: str | None = None) -> dict:
     """Render an existing saved FLP in a separate process. Export settings are inherited."""
     executable = os.environ.get("MIDIMCP_FL_EXECUTABLE") or fl.discover_fl()
     if not executable:
         raise ValueError("Set MIDIMCP_FL_EXECUTABLE to the installed FL64.exe")
-    return fl.render_project(_input(project, (".flp",)), _root(), Path(executable), timeout_seconds)
+    result = fl.render_project(_input(project, (".flp",)), _root(), Path(executable), timeout_seconds)
+    if result["status"] == "ok":
+        job = Path(result["job_dir"])
+        result["level_monitor"] = _monitor(Path(result["audio"]["path"]), reference_audio, job)
+        _save(job, result)
+    return result
 
 
 @mcp.tool()
@@ -218,7 +275,7 @@ def fl_render_and_compare(project: str, reference: str, timeout_seconds: float =
                           max_shift_seconds: float = 0.1) -> dict:
     """Render a saved FLP and compare its output. Stops if rendering/validation fails."""
     reference_path = _input(reference)
-    render = fl_render_project(project, timeout_seconds)
+    render = fl_render_project(project, timeout_seconds, str(reference_path))
     if render["status"] != "ok":
         return {"status": "error", "render": render, "comparison": None}
     comparison = audio_compare(str(reference_path), render["audio"]["path"], max_shift_seconds)

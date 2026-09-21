@@ -65,6 +65,9 @@ def create_reconstruction_plan(parts: list[dict], reference_audio: str | None = 
             raise ValueError("reference_audio must be a file")
     return {"schema_version": 1, "vocal_policy": "preserve_original_audio", "reference_audio": str(reference) if reference else None,
             "parts": result, "confidence_semantics": "User-supplied uncertainty annotation, not measured accuracy",
+            "level_policy": {"required": True, "scope": "each_instrument_and_final_mix", "target": "corresponding_reference_lufs",
+                             "tolerance_db": 0.5, "sources": "unchanged", "missing_reference": "unverified",
+                             "clipping_limited_match": "review_required", "dynamics": "preserve_constant_gain_only"},
             "native_fl_verified": False,
             "warnings": ["A plan is not transcription, source separation, or native FL validation.",
                          "Extracted vocals can contain separation artifacts; isolated original stems are preferred."]}

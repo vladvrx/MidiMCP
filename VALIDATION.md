@@ -1,5 +1,9 @@
 # Validation
 
+## 0.1.0a4 default level monitoring
+
+120 tests passed. Added integrated LUFS, RMS, sample peaks, estimated 4x peaks and 400 ms level histories; constant gain matching; missing-coverage and clipping-cap reporting; global reconstruction policy; automatic native-render/assembly level reports; and real MCP monitor calls. Original sources remain unchanged. Corrected WAVs are separate copies and do not update FL mixer gain. A headroom-limited result is not called matched. Native render calibration of a new reference song remains a separate acceptance step.
+
 ## 0.1.0a3 vocal workflow
 
 108 automated tests passed, including real stdio calls to all five new tools. Tests cover byte-identical vocal preservation, declared provenance, sample offsets, stereo/tails, rate mismatch rejection, clipping protection, source immutability, instrumental-only export with retained event timing, ambiguous track rejection and numbered comparison WAVs.

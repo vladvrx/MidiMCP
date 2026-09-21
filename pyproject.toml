@@ -4,12 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "midimcp"
-version = "0.1.0a3"
+version = "0.1.0a4"
 description = "MIDI, Serum 2 presets, FL Studio rendering and reference audio comparison over MCP"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
-dependencies = ["mcp>=1.28.1,<2", "numpy>=2.4.6,<3", "scipy>=1.15,<2", "soundfile>=0.13,<1", "mido>=1.3,<2", "serum-mcp==0.1.0"]
+dependencies = ["mcp>=1.28.1,<2", "numpy>=2.4.6,<3", "scipy>=1.15,<2", "soundfile>=0.13,<1", "mido>=1.3,<2", "serum-mcp==0.1.0", "pyloudnorm>=0.2,<0.3"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10"]
