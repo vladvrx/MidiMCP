@@ -9,7 +9,7 @@ from pathlib import Path
 from importlib.metadata import version
 
 from mcp.server.fastmcp import FastMCP
-from . import __version__, audio, fl, fl_project, midi, presets, reference as reference_audio
+from . import __version__, audio, fl, fl_project, fl_arrangement, midi, presets, reference as reference_audio
 
 mcp = FastMCP("MidiMCP", instructions=(
     "Recreate reference music with editable MIDI and Serum 2 presets. "
@@ -52,7 +52,7 @@ def capabilities() -> dict:
             "upstream_revision": presets.UPSTREAM_REVISION,
             "output_dir": str(_root()), "fl_executable": str(executable) if executable else None,
             "transport": "stdio", "supports": ["serum_preset_create_edit_describe", "midi_phrase_create_inspect",
-            "audio_reference_excerpt", "audio_compare_ab", "saved_flp_render", "experimental_serum_flp_create"],
+            "audio_reference_excerpt", "audio_compare_ab", "saved_flp_render", "experimental_serum_flp_create", "experimental_arrangement_instrument_replace"],
             "limitations": ["No automatic full-song transcription or guaranteed sound match.",
             "Experimental project creation supports FL24 and Serum2.0.18 with a local saved Serum project as a wrapper template.",
             "Project builder imports notes and velocity; MIDI expression is not yet supported.",
@@ -138,6 +138,22 @@ def fl_create_serum_project(preset: str, midi_path: str, wrapper_project: str | 
     result["input_sha256"] = {key: hashlib.sha256(path.read_bytes()).hexdigest()
                              for key, path in (("wrapper", wrapper_path), ("preset", preset_path), ("midi", phrase_path))}
     return _save(job, result)
+
+
+@mcp.tool()
+def fl_replace_channel_serum(project: str, channel_index: int, preset: str,
+                             wrapper_project: str | None = None) -> dict:
+    """Replace one instrument in a new FLP copy, preserving notes and routing. Old plugin automation is not remapped."""
+    wrapper = wrapper_project or os.environ.get("MIDIMCP_TEMPLATE_PROJECT")
+    executable = os.environ.get("MIDIMCP_FL_EXECUTABLE") or fl.discover_fl()
+    if not wrapper or not executable:
+        raise ValueError("Configure MIDIMCP_TEMPLATE_PROJECT and MIDIMCP_FL_EXECUTABLE, or provide wrapper_project")
+    source = _input(project, (".flp",))
+    patch = _input(preset, (".serumpreset", ".vstpreset"))
+    wrapper_path = _input(wrapper, (".flp",))
+    job = _job("fl-channel")
+    return _save(job, fl_arrangement.replace_channel_serum(source, channel_index, patch, wrapper_path,
+                                                           job, Path(executable).parent))
 
 
 @mcp.tool()

@@ -2,6 +2,8 @@
 
 Development build 0.1.0a1, tested on Windows with Python 3.12, FL Studio 24.1.1.4285 and Serum 2.0.18 VST3.
 
+The subsequent 0.1.0a2 adds arrangement-channel replacement and passes 69 automated tests. Its additional tests cover preserving other event bytes, notes, routing, source immutability and replacing multiple channels sequentially. Native acceptance rendered a separate seven-channel project with three Serum instances: 231.37 seconds of finite stereo audio, peak 0.9525, zero clipped samples and no startup errors. The actual MCP client replaced three instruments sequentially while preserving the arrangement. Reference audio and private project assets are not distributed.
+
 ## Verified
 
 - All 64 automated tests passed in the fresh project installation. They cover preset source preservation and state roundtrips, MIDI timing and input validation, audio delay/level comparisons, reference excerpt extraction, native wrapper/container validation, and render failure handling.
