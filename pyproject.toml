@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "midimcp"
-version = "0.1.0a2"
+version = "0.1.0a3"
 description = "MIDI, Serum 2 presets, FL Studio rendering and reference audio comparison over MCP"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -21,7 +21,7 @@ midimcp = "midimcp.server:main"
 packages = ["src/midimcp"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/scripts", "/README.md", "/LICENSE", "/THIRD_PARTY.md", "/VALIDATION.md", "/pyproject.toml", "/.gitignore"]
+include = ["/src", "/tests", "/scripts", "/README.md", "/ROADMAP.md", "/LICENSE", "/THIRD_PARTY.md", "/VALIDATION.md", "/pyproject.toml", "/.gitignore"]
 exclude = ["**/__pycache__", "**/*.pyc"]
 
 [tool.pytest.ini_options]

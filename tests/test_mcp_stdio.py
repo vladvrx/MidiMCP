@@ -66,6 +66,22 @@ async def _run_smoke(tmp_path):
             compared = _payload(await session.call_tool("audio_compare", {"reference": str(a), "candidate": str(b)}))
             assert compared["aligned"]["relative_rms_error_level_matched"] < 1e-6
             assert Path(compared["ab"]["path"]).is_file()
+            plan = _payload(await session.call_tool("reconstruction_plan", {"parts": [
+                {"id": "bass", "role": "bass"}, {"id": "voice", "role": "rap"}]}))
+            assert plan["parts"][1]["representation"] == "audio"
+            preserved = _payload(await session.call_tool("audio_preserve_vocals", {
+                "source": str(a), "provenance": "user_supplied_stem"}))
+            assert Path(preserved["path"]).read_bytes() == a.read_bytes()
+            assembled = _payload(await session.call_tool("audio_assemble_recreation", {
+                "instrumental": str(b), "vocal_assets": [preserved]}))
+            mixed, rate = sf.read(assembled["outputs"]["recreation"]["path"])
+            assert rate == 8000 and np.max(np.abs(mixed-.3*np.sin(2*np.pi*100*t))) < 1e-6
+            pair = _payload(await session.call_tool("audio_export_comparison", {
+                "first": str(a), "second": str(b)}))
+            assert [item["number"] for item in pair["files"]] == [1, 2]
+            exported = _payload(await session.call_tool("midi_export_instrumental", {
+                "source": created["path"], "track_roles": {"0": "instrumental"}}))
+            assert exported["removed_vocal_note_count"] == 0
             invalid = await session.call_tool("midi_create_phrase", {
                 "notes": [{"start": 0, "end": 1, "pitch": 200}]})
             assert invalid.isError is True

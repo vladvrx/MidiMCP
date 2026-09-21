@@ -10,9 +10,12 @@ from importlib.metadata import version
 
 from mcp.server.fastmcp import FastMCP
 from . import __version__, audio, fl, fl_project, fl_arrangement, midi, presets, reference as reference_audio
+from . import vocals, comparison, workflow
 
 mcp = FastMCP("MidiMCP", instructions=(
     "Recreate reference music with editable MIDI and Serum 2 presets. "
+    "Recreate instruments only: preserve all singing, rap, speech, backing vocals and vocal chops as source audio. "
+    "Do not synthesize vocal guides in the default recreation workflow. Separated vocals are not studio stems. "
     "MIDI does not contain synth audio. Validate changes by native render and A/B listening. "
     "Compare isolated matching phrases where possible. Audio distances are diagnostics, "
     "not accuracy percentages. Never claim a generated preset was loaded in FL without evidence."
@@ -52,10 +55,13 @@ def capabilities() -> dict:
             "upstream_revision": presets.UPSTREAM_REVISION,
             "output_dir": str(_root()), "fl_executable": str(executable) if executable else None,
             "transport": "stdio", "supports": ["serum_preset_create_edit_describe", "midi_phrase_create_inspect",
-            "audio_reference_excerpt", "audio_compare_ab", "saved_flp_render", "experimental_serum_flp_create", "experimental_arrangement_instrument_replace"],
+            "audio_reference_excerpt", "audio_compare_ab", "saved_flp_render", "experimental_serum_flp_create", "experimental_arrangement_instrument_replace",
+            "preserved_vocal_assets", "aligned_vocal_mix", "numbered_stereo_comparisons",
+            "reconstruction_role_contract", "instrumental_only_midi_export"],
             "limitations": ["No automatic full-song transcription or guaranteed sound match.",
             "Experimental project creation supports FL24 and Serum2.0.18 with a local saved Serum project as a wrapper template.",
             "Project builder imports notes and velocity; MIDI expression is not yet supported.",
+            "Vocal tools preserve supplied audio; automatic vocal separation and native FL audio-clip insertion are not implemented.",
             "FL must be closed for batch rendering; the tool refuses to launch over an open session.",
             "Custom sample ingestion is not enabled; upstream edits may apply module defaults.",
             "Serum and FL Studio must be installed and licensed by the user."]}
@@ -102,6 +108,21 @@ def midi_inspect(path: str) -> dict:
 
 
 @mcp.tool()
+def reconstruction_plan(parts: list[dict], reference_audio: str | None = None) -> dict:
+    """Validate explicit instrument/vocal roles. Voices must remain audio; this is not transcription or fidelity verification."""
+    result = workflow.create_reconstruction_plan(parts, reference_audio)
+    return _save(_job("plan"), result)
+
+
+@mcp.tool()
+def midi_export_instrumental(source: str, track_roles: dict[str, str]) -> dict:
+    """Exclude explicitly classified vocal MIDI. Classify every track as instrumental, vocal or metadata; mixed tracks are rejected."""
+    source_path = _input(source, (".mid", ".midi"))
+    job = _job("instrumental")
+    return _save(job, workflow.export_instrumental_midi(source_path, track_roles, job))
+
+
+@mcp.tool()
 def audio_reference_excerpt(source: str, start_seconds: float, duration_seconds: float) -> dict:
     """Extract up to 120 seconds for a matching phrase test, preserving rate/channels/level."""
     source_path = _input(source)
@@ -118,6 +139,33 @@ def audio_compare(reference: str, candidate: str, max_shift_seconds: float = 0.1
     result["input_sha256"] = {key: hashlib.sha256(path.read_bytes()).hexdigest()
                               for key, path in (("reference", reference_path), ("candidate", candidate_path))}
     return _save(job, result)
+
+
+@mcp.tool()
+def audio_export_comparison(first: str, second: str, match_rms: bool = True) -> dict:
+    """Export separate numbered WAVs, preserving stereo/timing. Optional RMS matching uses constant gains."""
+    first_path, second_path = _input(first), _input(second)
+    job = _job("listening")
+    return _save(job, comparison.export_pair(first_path, second_path, job, match_rms))
+
+
+@mcp.tool()
+def audio_preserve_vocals(source: str, provenance: str, timeline_start_seconds: float = 0,
+                          original_mix: str | None = None, separation_model: str | None = None) -> dict:
+    """Copy vocal audio unchanged with provenance. Separated stems require original mix and model; no separation is performed."""
+    source_path = _input(source)
+    mix_path = _input(original_mix) if original_mix else None
+    job = _job("vocals")
+    return _save(job, vocals.preserve_vocals(source_path, job, provenance,
+                 timeline_start_seconds, mix_path, separation_model))
+
+
+@mcp.tool()
+def audio_assemble_recreation(instrumental: str, vocal_assets: list[dict]) -> dict:
+    """Mix an instrumental with preserved vocal manifests at explicit offsets. No pitch/time changes; same sample rate required."""
+    instrumental_path = _input(instrumental)
+    job = _job("recreation-mix")
+    return _save(job, vocals.assemble_recreation(instrumental_path, vocal_assets, job))
 
 
 @mcp.tool()

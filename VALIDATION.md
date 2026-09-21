@@ -1,5 +1,11 @@
 # Validation
 
+## 0.1.0a3 vocal workflow
+
+108 automated tests passed, including real stdio calls to all five new tools. Tests cover byte-identical vocal preservation, declared provenance, sample offsets, stereo/tails, rate mismatch rejection, clipping protection, source immutability, instrumental-only export with retained event timing, ambiguous track rejection and numbered comparison WAVs.
+
+A private full-song MCP check preserved the separated vocal file byte for byte, removed 436 explicitly classified vocal-guide notes, retained 1,274 instrumental notes and assembled a 231.37-second preview. A common -2.56 dB attenuation protected headroom. This is offline assembly of an existing native instrumental render; native FL vocal-clip insertion and new perceptual fidelity are not established. Original-performance audio is preserved, but separation quality is not certified. No new native renders were needed for this release.
+
 Development build 0.1.0a1, tested on Windows with Python 3.12, FL Studio 24.1.1.4285 and Serum 2.0.18 VST3.
 
 The subsequent 0.1.0a2 adds arrangement-channel replacement and passes 69 automated tests. Its additional tests cover preserving other event bytes, notes, routing, source immutability and replacing multiple channels sequentially. Native acceptance rendered a separate seven-channel project with three Serum instances: 231.37 seconds of finite stereo audio, peak 0.9525, zero clipped samples and no startup errors. The actual MCP client replaced three instruments sequentially while preserving the arrangement. Reference audio and private project assets are not distributed.

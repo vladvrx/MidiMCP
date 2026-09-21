@@ -6,6 +6,8 @@ This is an early development build. It does not promise automatic full-song tran
 
 ## Install on Windows
 
+Recreation targets the instrumental. Preserve all original vocal performances as audio, including rap, backing vocals and vocal chops. Do not generate synthetic vocal guides by default. See [ROADMAP.md](ROADMAP.md) for the staged implementation and evaluation plan.
+
 Requires Python 3.12+, Git, and your own licensed FL Studio and Serum 2 installation for native sound work.
 
 ```powershell
@@ -27,6 +29,11 @@ The setup script creates a local virtual environment, installs the pinned upstre
 | `midi_inspect` | Read timing, pitches, tempo and expression |
 | `audio_reference_excerpt` | Extract a precise reference clip without normalization |
 | `audio_compare` | Compare corresponding clips and export a level-matched A/B |
+| `audio_export_comparison` | Export separate numbered stereo WAVs with optional RMS matching |
+| `audio_preserve_vocals` | Copy vocal audio unchanged with provenance and timeline offset |
+| `audio_assemble_recreation` | Mix preserved vocal assets with an instrumental render |
+| `reconstruction_plan` | Validate explicit part roles and original-vocal policy |
+| `midi_export_instrumental` | Exclude explicitly classified vocal performance tracks |
 | `fl_create_serum_project` | Build a new one-channel FLP from a Serum preset and MIDI |
 | `fl_replace_channel_serum` | Replace one instrument in a copied arrangement, preserving its MIDI and routing |
 | `fl_render_project` | Render a saved FLP with its existing plugin state |
@@ -35,6 +42,10 @@ The setup script creates a local virtual environment, installs the pinned upstre
 Generated files use distinct job directories. Job manifests record outputs and diagnostics. Audio comparison reports timing alignment, level, spectral and envelope differences separately. A dominant spectral peak is not a reliable fundamental-pitch estimate. Metrics do not constitute an accuracy percentage; listen to the A/B.
 
 ## Working on a reference
+
+Call `audio_preserve_vocals` with provenance `user_supplied_stem` or `separated_from_mix`. Separated stems require the original mix and model name; this tool does not perform separation. Pass returned manifests to `audio_assemble_recreation` with an instrumental render. Mixing requires matching sample rates and nonnegative offsets. It retains tails and reports common attenuation, without pitch correction or stretching. Native FL vocal-clip insertion is still pending.
+
+`midi_export_instrumental` requires every zero-based track index as a string key mapped to `instrumental`, `vocal` or `metadata`. It rejects unresolved/mixed roles and shared vocal/instrument channels. It preserves metadata and retained event timing. Generic MIDI creation remains available; the recreation plan enforces voices as audio.
 
 Use an isolated part or short matching excerpt when possible. Create a MIDI phrase, inspect the preset schema and generate a candidate patch. Call `fl_create_serum_project` with the patch and MIDI, then `fl_render_and_compare`. Refine notes and sound separately. Full-mix spectral differences cannot establish whether one bass patch matches.
 
